@@ -3,6 +3,8 @@
 
 #include <vector>
 
+#include "ast.h"
+
 enum TokenType
 {
   TOKEN_LITERAL,
@@ -349,6 +351,8 @@ int main(int argc, char *argv[])
 {
   std::vector<Token> tokens;
   StringParser parser(argv[1]);
+
+  ast::AST token_tree;
 
   while(true)
   {
