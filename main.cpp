@@ -163,59 +163,187 @@ struct StringParser
 
 };
 
-typedef std::vector<Token>  Clause;
-typedef std::vector<Clause> Clauses;
 
-Clauses transform_into_clauses_collection(std::vector<Token> tokens)
+
+struct Literal
 {
-  bool in_parenthesis = false;
+  const char* text;
+  int length;
+  bool negated;
+};
 
-  Clauses clauses;
+typedef std::vector<Literal> Clause;
+
+std::vector<Clause> formalize_expression(std::vector<Token> tokens)
+{
+  std::vector<Clause> clauses;
   Clause clause;
-  for(int i = 0; i < tokens.size(); i++)
+
+  bool in_parenthesis = false;
+  bool negate_next    = false;
+  int token_number = 1;
+  for(auto& token : tokens)
   {
-    auto& token = tokens[i];
-    if(token.type == TOKEN_OPEN_PARENTHESIS)
+    // Checking parenthesis
+    if(token.type == TOKEN_LITERAL)
     {
-      in_parenthesis = true;
-    }
-    else if(in_parenthesis && token.type == TOKEN_CLOSE_PARENTHESIS)
-    {
-      in_parenthesis = false;
+      clause.push_back(Literal{token.text, token.length, negate_next});
+      negate_next = false;
 
-      clauses.push_back(clause);
-      clause.clear();
-    }
-    else if(token.type == TOKEN_LITERAL)
-    {
-      if(in_parenthesis)
+      if(!in_parenthesis)
       {
-        clause.push_back(token);
-      }
-      else
-      {
-        clauses.push_back(Clause{token});
-      }
-    }
-    else if(token.type == TOKEN_NOT)
-    {
-      if(in_parenthesis)
-      {
-        clause.push_back(token);
-        clause.push_back(tokens[i + 1]);
-      }
-      else
-      {
-        Clause clause{token, tokens[i + 1]};
         clauses.push_back(clause);
+        clause.clear();
       }
-
-      i++;
     }
+    else
+    {
+      if(negate_next)
+      {
+        printf("Warning: token %d contains a NOT operator, but the literal at who it was referred was not found\n", token_number);
+        negate_next = false;
+      }
+      if(token.type == TOKEN_OPEN_PARENTHESIS)
+      {
+        if(in_parenthesis)
+        {
+          printf("Error at token %d: token contains an open parenthesis, but we were already in one\n", token_number);
+          exit(1);
+        }
+
+        in_parenthesis = true;
+      }
+      else if(token.type == TOKEN_CLOSE_PARENTHESIS)
+      {
+        if(!in_parenthesis)
+        {
+          printf("Error at token %d: token contains a close parenthesis, but we were not in one\n", token_number);
+          exit(1);
+        }
+
+        in_parenthesis = false;
+
+        clauses.push_back(clause);
+        clause.clear();
+      }
+      else if(token.type == TOKEN_NOT)
+      {
+        negate_next = true;
+      }
+      else if(token.type == TOKEN_AND)
+      {
+        if(in_parenthesis)
+        {
+          printf("Error at token %d: found AND token inside of parenthesis, this is not a valid CNF formula\n", token_number);
+          exit(1);
+        }
+
+        clause.clear();
+      }
+      else if(token.type == TOKEN_OR)
+      {
+        if(!in_parenthesis)
+        {
+          printf("Error at token %d: found OR token outside of parenthesis, this is not a valid CNF formula\n", token_number);
+          exit(1);
+        }
+      }
+      else
+      {
+        printf("Warning at token %d: unsupported token type(raw value: %.*s)\n", token_number, token.length, token.text);
+      }
+    }
+
+    token_number++;
   }
 
   return clauses;
 }
+
+void print_clauses(const std::vector<Clause>& clauses)
+{
+  for(int i = 0; i < clauses.size(); i++)
+  {
+    auto& clause = clauses[i];
+
+    printf("C%d: ", i + 1);
+    if(!clause.empty())
+    {
+      printf("{");
+
+      for(int j = 0; j < clause.size(); j++)
+      {
+        auto& literal = clause[j];
+        if(literal.negated)
+        {
+          printf("~");
+        }
+        printf("%.*s", literal.length, literal.text);
+        if(j + 1 < clause.size())
+        {
+          printf(", ");
+        }
+      }
+
+      printf("}\n");
+    }
+    else
+    {
+      printf("[]");
+    }
+  }
+}
+
+void print_clauses_full(const std::vector<Clause> clauses)
+{
+  printf("{");
+  for(int i = 0; i < clauses.size(); i++)
+  {
+    auto& clause = clauses[i];
+    if(!clause.empty())
+    {
+      printf("{");
+      for(int j = 0; j < clause.size(); j++)
+      {
+        auto& literal = clause[j];
+        if(literal.negated)
+        {
+          printf("~");
+        }
+        printf("%.*s", literal.length, literal.text);
+        if(j + 1 < clause.size())
+        {
+          printf(", ");
+        }
+      }
+      printf("}");
+    }
+    else
+    {
+      printf("[]");
+    }
+
+    if(i + 1 < clauses.size())
+    {
+      printf(", ");
+    }
+  }
+  printf("}");
+}
+
+// returns true if formula it satisfiable, false otherwise
+// bool davis_putnam(std::vector<Clause> clauses)
+// {
+//   auto pivot_queue = create_ordered_pivot_queue();
+//   const char* pivot
+//
+//   while(true)
+//   {
+//     remove_tautologies(clauses);
+//
+//     for()
+//   }
+// }
 
 int main(int argc, char *argv[])
 {
@@ -234,26 +362,10 @@ int main(int argc, char *argv[])
     tokens.push_back(token);
   }
 
-  for(auto& token : tokens)
-  {
-    printf("%.*s", token.length, token.text);
-  }
+  auto clauses = formalize_expression(tokens);
 
+  print_clauses_full(clauses);
   printf("\n");
-
-  auto clauses = transform_into_clauses_collection(tokens);
-
-  int i = 1;
-  int j = 1;
-  for(auto& clause : clauses)
-  {
-    for(auto& token : clause)
-    {
-      printf("%.*s", token.length, token.text);
-    }
-
-    printf("\n");
-  }
 
   return 0;
 }
